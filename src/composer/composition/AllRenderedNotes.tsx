@@ -15,6 +15,7 @@ import { BeatSizeContext } from "../contexts/BeatSizeContextProvider";
 const PlacedNotesOverlay = styled.div<{ $shouldMouseIgnoreMe: boolean }>`
   position: sticky;
   pointer-events: ${({ $shouldMouseIgnoreMe }) => $shouldMouseIgnoreMe ? 'none' : 'unset' };
+  touch-action: ${({ $shouldMouseIgnoreMe }) => $shouldMouseIgnoreMe ? 'none' : 'manipulation' };
   z-index: 1;
 `;
 
@@ -39,7 +40,7 @@ const RectSelector = styled.div<{ $left: number, $top: number, $width: number, $
 function StaticPlacedNotes({
   handlePlacedNoteMouseDown,
 }: {
-  handlePlacedNoteMouseDown: (e: React.MouseEvent<HTMLDivElement, MouseEvent>, noteId: NoteId) => void
+  handlePlacedNoteMouseDown: (e: React.PointerEvent<HTMLDivElement>, noteId: NoteId) => void
 }) {
   const { _userInstruments } = useContext(UserInstrumentContext)!;
   const {
@@ -100,6 +101,7 @@ function CreatedNote({
   } = useContext(UserInstrumentContext)!;
   const { _clickedNote } = useContext(ClickedSelectedNotesContext)!;
   const { _subdivisionType } = useContext(SubdivisionTypeContext)!;
+  const { _isTemporaryTouchStart } = useContext(MouseDownContext)!;
   const topmostMidiNote = useMemo(() => toMidi(pianoRollKeys[0])!, []);
   const userInstrument = _userInstruments[_userInstrumentIndex];
 
@@ -109,6 +111,7 @@ function CreatedNote({
       && _startingCursorPos
       && _cursorPosition
       && !_clickedNote
+      && !_isTemporaryTouchStart
       && (
         <PlacedNote
           topmostMidiNote={topmostMidiNote}
@@ -257,13 +260,13 @@ export function AllRenderedNotes({
   _cursorXOffset,
   _cursorPosition,
   _startingCursorPos,
-  handlePlacedNoteMouseDown
+  handlePlacedNoteMouseDown,
 }: {
   _inputMode: InputMode,
   _cursorXOffset: number,
   _cursorPosition: CursorPosition | undefined,
   _startingCursorPos: CursorPosition | undefined,
-  handlePlacedNoteMouseDown: (e: React.MouseEvent<HTMLDivElement, MouseEvent>, noteId: NoteId) => void
+  handlePlacedNoteMouseDown: (e: React.PointerEvent<HTMLDivElement>, noteId: NoteId) => void
 }) {
   const { _isCompositionMouseDown: _isMouseDown } = useContext(MouseDownContext)!;
 

@@ -284,7 +284,7 @@ export function ActionButtonFooter({
   setInputMode: (inputMode: InputMode, isMouseDown: boolean) => void,
   tryCopySelectedNotes: () => void,
   tryCutSelectedNotes: () => void,
-  tryPasteCopiedNotes: (e: MouseEvent | KeyboardEvent) => void
+  tryPasteCopiedNotes: (e: PointerEvent | KeyboardEvent) => void
 }) {
   const containerStyle = useMemo(() => ({ marginTop: 1, justifyContent: 'center' }), []);
   return (

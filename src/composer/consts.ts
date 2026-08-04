@@ -3,11 +3,18 @@ import { Soundfont2Sampler } from "../smplr/soundfont2";
 import { globals } from "./globals";
 
 export const DOUBLE_CLICK_SECOND_BUFFER = 0.2;
+export const TOUCH_SCROLL_SECOND_BUFFER = 0.2;
+export const TOUCH_SCROLL_PIXEL_DELTA_BUFFER = 2;
 export const DEFAULT_VOLUME = 50;
 export const MAX_USER_INSTRUMENTS = 16;
 export const MAX_BABY_FRAMES = 4;
 export const MAX_BABY_Y_FRAMES = 5;
 export const DEFAULT_SOUNDFONT_FILE_NAME = "microgm.sf2";
+
+export const DEFAULT_BEAT_WIDTH = 15;
+export const DEFAULT_BEAT_HEIGHT = 15;
+export const DEFAULT_BEAT_WIDTH_MOBILE = 30;
+export const DEFAULT_BEAT_HEIGHT_MOBILE = 30;
 
 export const zIndex_placedNote = 1;
 export const zIndex_selectedNote = 2;
@@ -29,6 +36,22 @@ function shuffleArray(arr: unknown[]) {
         arr[j] = temp;
     }
 }
+
+const timeouts: {[key: number]: (() => void) | undefined } = {};
+export const windowSetTimeout = function(callback: () => void, ms: number) {
+    const id = window.setTimeout(callback, ms);
+    timeouts[id] = callback;
+    return id;
+};
+
+export const triggerTimeoutEarly = function(id: number) {
+    const callback = timeouts[id];
+    if (callback) {
+        clearTimeout(id);
+        callback();
+        delete timeouts[id];
+    }
+};
 
 export const sf2DefaultColours = [
   "#f1ad85",
@@ -283,7 +306,11 @@ export enum InputMode {
   SELECT = "select",
   DELETE = "delete",
 }
-export type CursorPosition = { midiNote: MidiNoteNum; midiBeat: MidiBeat; };
+export type Position = { x: number, y: number };
+export type CursorPosition = { midiNote: MidiNoteNum; midiBeat: MidiBeat; clientPos?: Position };
+export const distBetween = (a: Position, b: Position) => {
+  return Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2));
+};
 
 export const AudioContextContext = createContext<AudioContext | undefined>(undefined);
 
@@ -365,9 +392,6 @@ export function convertCompositionToCompositionByInstrument(composition: Composi
   });
   return compositionByInstrument;
 }
-
-export const DEFAULT_BEAT_WIDTH = 15;
-export const DEFAULT_BEAT_HEIGHT = 15;
 
 export function getStartOfMeasureFromBeat(beat: MidiBeat, timeSignature: TimeSignature) {
   const timeSignatureVal = timeSignature === TimeSignature.ts4_4 ? 4 : 3;

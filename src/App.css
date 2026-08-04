@@ -1,8 +1,15 @@
+html {
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+}
+
 .App {
   text-align: center;
   max-height: 100%;
   display: flex;
   flex-direction: column;
+  touch-action: manipulation;
 }
 
 .App-header {

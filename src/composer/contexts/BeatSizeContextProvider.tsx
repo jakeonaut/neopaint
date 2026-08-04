@@ -1,5 +1,5 @@
-import React, { createContext, useCallback, useRef, useState } from "react";
-import { DEFAULT_BEAT_WIDTH, DEFAULT_BEAT_HEIGHT } from "../consts";
+import React, { createContext, useCallback, useEffect, useRef, useState } from "react";
+import { DEFAULT_BEAT_WIDTH, DEFAULT_BEAT_HEIGHT, DEFAULT_BEAT_WIDTH_MOBILE, DEFAULT_BEAT_HEIGHT_MOBILE } from "../consts";
 
 export function BeatSizeContextProvider({ children } : { children: React.ReactNode }) {
   const [_beatWidth, _setBeatWidth] = useState(DEFAULT_BEAT_WIDTH);
@@ -18,14 +18,28 @@ export function BeatSizeContextProvider({ children } : { children: React.ReactNo
     _setBeatHeight(newBeatHeight);
   }, []);
 
+  const onResize = useCallback(() => {
+    setBeatWidth(DEFAULT_BEAT_WIDTH);
+    setBeatHeight(DEFAULT_BEAT_HEIGHT);
+    if (window.matchMedia("(pointer: coarse)").matches) {
+      setBeatWidth(DEFAULT_BEAT_WIDTH_MOBILE);
+      setBeatHeight(DEFAULT_BEAT_HEIGHT_MOBILE);
+    }
+  }, [setBeatHeight, setBeatWidth]);
+  useEffect(() => {
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+    }
+  }, [onResize]);
+
   return (
     <BeatSizeContext value={{
       _beatWidth,
       beatWidthRef,
-      setBeatWidth,
       _beatHeight,
       beatHeightRef,
-      setBeatHeight,
     }}>
       {children}
     </BeatSizeContext>
@@ -35,8 +49,6 @@ export function BeatSizeContextProvider({ children } : { children: React.ReactNo
 export const BeatSizeContext = createContext<{
   _beatWidth: number,
   beatWidthRef: React.RefObject<number>,
-  setBeatWidth: (newBeatWidth: number) => void,
   _beatHeight: number,
   beatHeightRef: React.RefObject<number>,
-  setBeatHeight: (newBeatHeight: number) => void,
 } | undefined>(undefined);

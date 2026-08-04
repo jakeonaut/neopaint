@@ -151,7 +151,7 @@ export function Maestro({
     copiedNotesOffsetRef.current = 0;
   }, [copiedNotesOffsetRef, tryCopySelectedNotes, tryDeleteSelectedNotes]);
 
-  const tryPasteCopiedNotes = useCallback((e: KeyboardEvent | MouseEvent) => {
+  const tryPasteCopiedNotes = useCallback((e: KeyboardEvent | PointerEvent) => {
     console.log("TODO: test this while dragging other selected notes...");
     console.log("TODO: need to test the midiBeat increase with different copied subdivision types?")
     const copiedNotes = Object.values(copiedNotesRef.current);
@@ -477,25 +477,25 @@ export function Maestro({
     } : prev));
   }, [inputModeRef, trySetInputMode, isCompositionMouseDownRef, onCompositionMouseUpRef, setInputMode, setHeldPianoKeys]);
 
-  const handleMouseDown = useCallback((e: MouseEvent) => {
+  const handleMouseDown = useCallback((e: PointerEvent) => {
     if (e.shiftKey) return false;
     setSelectedNotes({});
   }, [setSelectedNotes]);
 
-  const handleMouseUp = useCallback((e: MouseEvent) => {
+  const handleMouseUp = useCallback((e: PointerEvent) => {
 
   }, []);
 
   useEffect(() => {
     document.addEventListener("keydown", handleKeyDown);
     document.addEventListener("keyup", handleKeyUp);
-    document.addEventListener("mousedown", handleMouseDown);
-    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("pointerdown", handleMouseDown);
+    document.addEventListener("pointerup", handleMouseUp);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("keyup", handleKeyUp);
-      document.removeEventListener("mousedown", handleMouseDown);
-    document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("pointerdown", handleMouseDown);
+    document.removeEventListener("pointerup", handleMouseUp);
     };
   }, [handleKeyDown, handleKeyUp, handleMouseDown, handleMouseUp]);
   useEffect(() => {

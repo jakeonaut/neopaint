@@ -144,7 +144,7 @@ export function PlayheadNode({
     _setBabyMouseDown(newBabyMouseDown);
   }, []);
 
-  const handleCodaLeftMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleCodaLeftMouseDown = useCallback((e: React.PointerEvent) => {
     if (inputModeRef.current === InputMode.SELECT) { return false; }
 
     const start = beatFromEvent({ target: playheadNodeElementRef.current! as HTMLDivElement, clientX: e.clientX - 30 }, beatWidthRef.current);
@@ -156,7 +156,7 @@ export function PlayheadNode({
     return false;
   }, [beatWidthRef, endOfMeasureToLoopAtBeat, inputModeRef, setPlayheadMouseDown, userPlayheadBoundsRef]);
 
-  const handleCodaRightMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleCodaRightMouseDown = useCallback((e: React.PointerEvent) => {
     if (inputModeRef.current === InputMode.SELECT) { return false; }
 
     const start = beatFromEvent({ target: playheadNodeElementRef.current! as HTMLDivElement, clientX: e.clientX - 30 }, beatWidthRef.current);
@@ -168,7 +168,7 @@ export function PlayheadNode({
     return false;
   }, [beatWidthRef, inputModeRef, setPlayheadMouseDown, userPlayheadBoundsRef]);
 
-  const handleBabyMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleBabyMouseDown = useCallback((e: React.PointerEvent) => {
     if (inputModeRef.current === InputMode.SELECT) { return false; }
 
     const cursorBeat = playheadPosXRef.current / beatWidthRef.current;
@@ -188,7 +188,7 @@ export function PlayheadNode({
     return false;
   }, [audioContext, beatWidthRef, compositionRef, incrementBabyDanceFrame, inputModeRef, isPlayingRef, playheadPosXRef, setBabyMouseDown, tempoRef, userInstrumentsRef]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleMouseDown = useCallback((e: React.PointerEvent) => {
     if (inputModeRef.current === InputMode.SELECT) { return false; }
 
     const start = beatFromEvent({ target: e.target as HTMLDivElement, clientX: e.clientX }, beatWidthRef.current);
@@ -253,7 +253,7 @@ export function PlayheadNode({
     }
   }, [beatWidthRef, _compositionByInstructionIdRef, inputModeRef, selectNotesByMeasure, setUserPlayheadBounds, timeSignatureRef, userPlayheadBoundsRef]);
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
+  const handleMouseMove = useCallback((e: PointerEvent) => {
     if (inputModeRef.current === InputMode.SELECT) { return false; }
 
     const cursorBeat = beatFromEvent({ target: playheadNodeElementRef.current!, clientX: e.clientX - 30 }, beatWidthRef.current);
@@ -300,11 +300,11 @@ export function PlayheadNode({
   }, [setBabyMouseDown, setPlayheadMouseDown]);
   
   useEffect(() => {
-    document.addEventListener("mouseup", handleMouseUp);
-    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("pointerup", handleMouseUp);
+    document.addEventListener("pointermove", handleMouseMove);
     return () => {
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("pointerup", handleMouseUp);
+      document.removeEventListener("pointermove", handleMouseMove);
     };
   }, [handleMouseUp, handleMouseMove]);
 
@@ -313,7 +313,7 @@ export function PlayheadNode({
   return (
     <PlayheadContainer
       ref={playheadNodeElementRef}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
       $beatHeight={_beatHeight}
     >
@@ -321,7 +321,7 @@ export function PlayheadNode({
       <PlayheadStickyContainer $beatWidth={_beatWidth} $isMouseDown={_babyMouseDown || _codaMouseDown}>
         <PlayheadSubContainer>
           <BabyPlayheadImg
-            onMouseDown={handleBabyMouseDown}
+            onPointerDown={handleBabyMouseDown}
             src="trans.png"
             $frame={babyDanceFrame}
             $yFrame={babyDanceYFrame}
@@ -330,7 +330,7 @@ export function PlayheadNode({
             $beatWidth={_beatWidth}
           />
           <PixelCoda
-            onMouseDown={handleCodaLeftMouseDown}
+            onPointerDown={handleCodaLeftMouseDown}
             $y={codaSpriteY}
             $left={_userPlayheadBounds?.start !== undefined ? _userPlayheadBounds.start * _beatWidth: 0}
             $inverted={false}
@@ -339,7 +339,7 @@ export function PlayheadNode({
             $opacity={1.0}
           />
           <PixelCoda
-            onMouseDown={handleCodaRightMouseDown}
+            onPointerDown={handleCodaRightMouseDown}
             $y={codaSpriteY}
             $left={_userPlayheadBounds?.end !== undefined ? (_userPlayheadBounds.end - 1) * _beatWidth : (endOfMeasureToLoopAtBeat - 1) * _beatWidth}
             $inverted={true}

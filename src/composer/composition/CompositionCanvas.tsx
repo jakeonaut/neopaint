@@ -17,6 +17,11 @@ import {
   getEndOfMeasureFromBeat,
   DOUBLE_CLICK_SECOND_BUFFER,
   InstrumentInstruction,
+  TOUCH_SCROLL_SECOND_BUFFER,
+  distBetween,
+  TOUCH_SCROLL_PIXEL_DELTA_BUFFER,
+  windowSetTimeout,
+  triggerTimeoutEarly,
 } from "../consts";
 import styled from "styled-components";
 import { toMidi } from "../../smplr/smplr/midi";
@@ -50,6 +55,7 @@ const CompositionGridContainer = styled.div`
   border-bottom: 2px solid black;
   width: calc(100% - 1px);
   margin-bottom: 2px;
+  -webkit-tap-highlight-color: transparent;
 `;
 
 const PianoRollKeysContainer = styled.div`
@@ -77,6 +83,7 @@ export function CompositionCanvas({
   inputModeRef: React.RefObject<InputMode>;
   setInputMode: (inputMode: InputMode) => void;
 }) {
+  const [dontScrollForNow, setDontScrollForNow] = useState(false);
   const audioContext = useContext(AudioContextContext)!;
   const {
     userInstrumentsRef,
@@ -93,6 +100,8 @@ export function CompositionCanvas({
   const {
     isCompositionMouseDownRef: isMouseDownRef,
     setIsCompositionMouseDown: setIsMouseDown,
+    isTemporaryTouchStartRef,
+    setIsTemporaryTouchStart,
     whenWasMouseDownedRef,
     onCompositionMouseUpRef,
   } = useContext(MouseDownContext)!;
@@ -160,7 +169,7 @@ export function CompositionCanvas({
 
   const handleMouseDown = useCallback(
     (
-      e: React.MouseEvent<HTMLDivElement, MouseEvent>,
+      e: React.PointerEvent<HTMLDivElement>,
       midiBeat: MidiBeat,
       midiNote: MidiNoteNum,
     ) => {
@@ -182,21 +191,32 @@ export function CompositionCanvas({
       }
       setIsMouseDown(true);
       setCursorPosition({ midiNote, midiBeat: midiBeat - cursorXOffsetRef.current });
-      setStartingCursorPos({ midiNote, midiBeat });
-      if (!clickedNoteRef.current && inputModeRef.current === InputMode.DEFAULT) {
-        if (audioContext.state === "suspended") {
-          audioContext.resume();
+      setStartingCursorPos({ midiNote, midiBeat, clientPos: { x: e.clientX, y: e.clientY }});
+      if (e.pointerType !== "mouse") {
+        setIsTemporaryTouchStart(windowSetTimeout(() => {
+          setIsTemporaryTouchStart(undefined);
+          setDontScrollForNow(true);
+          if (audioContext.state === "suspended") {
+            audioContext.resume();
+          }
+          userInstrumentsRef.current[userInstrumentIndexRef.current].sf2Sampler?.start({ note: midiNote, duration: 0.25 });
+        }, TOUCH_SCROLL_SECOND_BUFFER * 1000));
+      } else if (e.pointerType === "mouse") {
+        if (!clickedNoteRef.current && inputModeRef.current === InputMode.DEFAULT) {
+          if (audioContext.state === "suspended") {
+            audioContext.resume();
+          }
+          userInstrumentsRef.current[userInstrumentIndexRef.current].sf2Sampler?.start({ note: midiNote, duration: 0.25 });
         }
-        userInstrumentsRef.current[userInstrumentIndexRef.current].sf2Sampler?.start({ note: midiNote, duration: 0.25 });
       }
       hasMouseMovedRef.current = false;
       return false;
     },
-    [onCompositionMouseUpRef, inputModeRef, selectedNotesRef, clickedNoteRef, isNoteSelected, whenWasMouseDownedRef, setIsMouseDown, setCursorPosition, setStartingCursorPos, setSelectedNotes, _compositionByInstructionIdRef, audioContext, userInstrumentsRef, userInstrumentIndexRef]
+    [onCompositionMouseUpRef, inputModeRef, selectedNotesRef, clickedNoteRef, isNoteSelected, whenWasMouseDownedRef, setIsMouseDown, setIsTemporaryTouchStart, setCursorPosition, setStartingCursorPos, setSelectedNotes, _compositionByInstructionIdRef, audioContext, userInstrumentsRef, userInstrumentIndexRef]
   );
   const justSelectedNoteRef = useRef<InstrumentInstruction | undefined>(undefined);
   const handleDoubleClick = useCallback((
-    e: React.MouseEvent<HTMLDivElement, MouseEvent>,
+    e: React.PointerEvent<HTMLDivElement>,
     midiBeat: MidiBeat,
     midiNote: MidiNoteNum,
   ) => {
@@ -240,9 +260,36 @@ export function CompositionCanvas({
     return false;
   }, [timeSignatureRef, _compositionByInstructionIdRef, inputModeRef, toggleSelectionOnNoteSet, selectedNotesRef, removeCompositionNotes]);
 
+  const mouseUpCleanup = useCallback((e: PointerEvent, shouldTriggerTimeoutEarly: boolean) => {
+    setClickedNote(undefined);
+    if (isTemporaryTouchStartRef.current) {
+      if (shouldTriggerTimeoutEarly) {
+        triggerTimeoutEarly(isTemporaryTouchStartRef.current);
+      } else {
+        window.clearTimeout(isTemporaryTouchStartRef.current)
+      }
+    }
+    setIsTemporaryTouchStart(undefined);
+    setIsMouseDown(false);
+    setCursorPosition(undefined);
+    setStartingCursorPos(undefined);
+    if (e.pointerType === "mouse") {
+      if (onCompositionMouseUpRef.current) {
+        onCompositionMouseUpRef.current();
+      } else if (!e.shiftKey && inputModeRef.current === InputMode.SELECT) {
+        setInputMode((e.metaKey || e.ctrlKey) ? InputMode.DELETE : InputMode.DEFAULT);
+      } else if (!e.metaKey && !e.ctrlKey && inputModeRef.current === InputMode.DELETE) {
+        setInputMode(e.shiftKey ? InputMode.SELECT : InputMode.DEFAULT);
+      }
+    }
+    onCompositionMouseUpRef.current = undefined;
+    setCursorXOffset(0);
+    hasMouseMovedRef.current = false;
+  }, [inputModeRef, isTemporaryTouchStartRef, onCompositionMouseUpRef, setClickedNote, setCursorPosition, setCursorXOffset, setInputMode, setIsMouseDown, setIsTemporaryTouchStart, setStartingCursorPos]);
   const prevCompositionByIdWhenIStartedErasingRef = useRef<{[x: string]: InstrumentInstruction} | undefined>(undefined);
   const handleMouseUp = useCallback(
-    (e: MouseEvent) => {
+    (e: PointerEvent) => {
+      setDontScrollForNow(false);
       if (isMouseDownRef.current && cursorPositionRef.current && startingCursorPosRef.current) {
         const midiNote = cursorPositionRef.current.midiNote;
         if (inputModeRef.current === InputMode.DEFAULT) {
@@ -375,20 +422,7 @@ export function CompositionCanvas({
           }
         }
       }
-      setClickedNote(undefined);
-      setIsMouseDown(false);
-      setCursorPosition(undefined);
-      setStartingCursorPos(undefined);
-      if (onCompositionMouseUpRef.current) {
-        onCompositionMouseUpRef.current();
-      } else if (!e.shiftKey && inputModeRef.current === InputMode.SELECT) {
-        setInputMode((e.metaKey || e.ctrlKey) ? InputMode.DELETE : InputMode.DEFAULT);
-      } else if (!e.metaKey && !e.ctrlKey && inputModeRef.current === InputMode.DELETE) {
-        setInputMode(e.shiftKey ? InputMode.SELECT : InputMode.DEFAULT);
-      }
-      onCompositionMouseUpRef.current = undefined;
-      setCursorXOffset(0);
-      hasMouseMovedRef.current = false;
+      mouseUpCleanup(e, true /* shouldTriggerTimeoutEarly */);
 
       if (!!prevCompositionByIdWhenIStartedErasingRef.current) {
         addToUndoStack({
@@ -400,15 +434,21 @@ export function CompositionCanvas({
       // TODO(jaketrower): do this with the window document too like handleKeyDown
       return false;
     },
-    [isMouseDownRef, setClickedNote, setIsMouseDown, setCursorPosition, setStartingCursorPos, onCompositionMouseUpRef, inputModeRef, setCursorXOffset, clickedNoteRef, setPristine, subdivisionTypeRef, addCompositionNotes, userInstrumentIndexRef, _compositionByInstructionIdRef, removeCompositionNotes, selectedNotesRef, addToUndoStack, whenWasMouseDownedRef, setSelectedNotes, compositionRef, userInstrumentsRef, toggleSelectionOnNoteSet, setUserInstrumentIndex, setInputMode]
+    [isMouseDownRef, mouseUpCleanup, inputModeRef, clickedNoteRef, setPristine, subdivisionTypeRef, addCompositionNotes, userInstrumentIndexRef, _compositionByInstructionIdRef, removeCompositionNotes, selectedNotesRef, addToUndoStack, whenWasMouseDownedRef, setSelectedNotes, compositionRef, userInstrumentsRef, toggleSelectionOnNoteSet, setUserInstrumentIndex]
   );
   const handleMouseMove = useCallback(
     (
-      e: React.MouseEvent<HTMLDivElement, MouseEvent>,
+      e: React.PointerEvent<HTMLDivElement>,
       midiBeat: MidiBeat,
       midiNote: MidiNoteNum
     ) => {
-      // console.log("HELLO?!");
+      const delta = startingCursorPosRef.current?.clientPos ? distBetween(startingCursorPosRef.current.clientPos, {x: e.clientX, y: e.clientY}) : 0;
+      if (isTemporaryTouchStartRef.current && delta >= TOUCH_SCROLL_PIXEL_DELTA_BUFFER) {
+        window.clearTimeout(isTemporaryTouchStartRef.current);
+        setIsTemporaryTouchStart(undefined);
+        mouseUpCleanup(e as any as PointerEvent, false /* shouldTriggerTimeoutEarly */);
+        return false;
+      }
       if (
         isMouseDownRef.current &&
         cursorPositionRef.current &&
@@ -450,15 +490,16 @@ export function CompositionCanvas({
       }
       return false;
     },
-    [isMouseDownRef, inputModeRef, setCursorPosition, clickedNoteRef, userInstrumentsRef, userInstrumentIndexRef, subdivisionTypeRef, compositionRef, removeCompositionNotes]
+    [isMouseDownRef, isTemporaryTouchStartRef, inputModeRef, setCursorPosition, setIsTemporaryTouchStart, mouseUpCleanup, clickedNoteRef, userInstrumentsRef, userInstrumentIndexRef, subdivisionTypeRef, compositionRef, removeCompositionNotes]
   );
   const throttledHandleMouseMove = useThrottledCallback(handleMouseMove, 10);
 
   const handlePlacedNoteMouseDown = useCallback(
     (
-      e: React.MouseEvent<HTMLDivElement, MouseEvent>,
+      e: React.PointerEvent<HTMLDivElement>,
       noteId: NoteId,
     ) => {
+      setDontScrollForNow(true);
       onCompositionMouseUpRef.current = undefined;
       e.preventDefault();
       if (inputModeRef.current !== InputMode.DEFAULT && inputModeRef.current !== InputMode.DELETE) return;
@@ -479,6 +520,13 @@ export function CompositionCanvas({
           });
           setSelectedNotes({});
         } else {
+          if (e.pointerType !== "mouse") {
+            setIsTemporaryTouchStart(windowSetTimeout(() => {
+              setIsTemporaryTouchStart(undefined);
+              setDontScrollForNow(true);
+              userInstrumentsRef.current[instrumentInstruction.userInstrumentIndex].sf2Sampler?.start({ note: instrumentInstruction.midiNote, duration: 0.25 });
+            }, TOUCH_SCROLL_SECOND_BUFFER * 1000));
+          }
           setClickedNote(noteId);
           Object.entries(selectedNotesRef.current).forEach(([noteWithOffsetId, noteWithOffset]) => {
             if (noteWithOffsetId === noteId.toString()) return;
@@ -500,7 +548,9 @@ export function CompositionCanvas({
         }
       }
       if (!isDeleteClick) {
-        userInstrumentsRef.current[instrumentInstruction.userInstrumentIndex].sf2Sampler?.start({ note: instrumentInstruction.midiNote, duration: 0.25 });
+        if (e.pointerType === "mouse") {
+          userInstrumentsRef.current[instrumentInstruction.userInstrumentIndex].sf2Sampler?.start({ note: instrumentInstruction.midiNote, duration: 0.25 });
+        }
         setSubdivisionType(instrumentInstruction.subdivisionType);
         handleMouseDown(
           e, 
@@ -509,7 +559,7 @@ export function CompositionCanvas({
         );
       }
     },
-    [onCompositionMouseUpRef, inputModeRef, setCursorXOffset, beatWidth, _compositionByInstructionIdRef, isNoteSelected, removeCompositionNotes, selectedNotesRef, addToUndoStack, setSelectedNotes, setClickedNote, userInstrumentsRef, setSubdivisionType, handleMouseDown]
+    [onCompositionMouseUpRef, inputModeRef, setCursorXOffset, beatWidth, _compositionByInstructionIdRef, isNoteSelected, removeCompositionNotes, selectedNotesRef, addToUndoStack, setSelectedNotes, setClickedNote, setIsTemporaryTouchStart, userInstrumentsRef, setSubdivisionType, handleMouseDown]
   );
 
   const resetUserPlayheadBounds = useCallback(() => {
@@ -518,11 +568,15 @@ export function CompositionCanvas({
   }, [setUserPlayheadBounds, userPlayheadBoundsRef]);
 
   useEffect(() => {
-    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("pointerup", handleMouseUp);
     return () => {
-      document.removeEventListener("mouseup", handleMouseUp)
+      document.removeEventListener("pointerup", handleMouseUp)
     };
   }, [handleMouseUp]);
+
+  const maybeDisableTouchActionStyle = useMemo(() => {
+    return { touchAction: dontScrollForNow ? 'none' : 'manipulation'};
+  }, [dontScrollForNow]);
 
   const resetUserPlayheadButton = useMemo(
     () => (<div style={{
@@ -554,11 +608,11 @@ export function CompositionCanvas({
     cursor: 'pointer',
     borderRight: '1px solid black',
     borderBottom: '1px solid black',
-    height: 13,
+    height: _beatHeight - 2,
     fontSize: 12,
     background: 'white',
     color: 'black',
-  }), []);
+  }), [_beatHeight]);
   const currUserInstrument = userInstrumentsRef.current[userInstrumentIndexRef.current];
   const pianoRollKeyStyle = useCallback((midiNote: string, isLast: boolean, isHeld: boolean) => ({
     ...pianoRollKeyBaseStyle,
@@ -572,9 +626,9 @@ export function CompositionCanvas({
     } : {}),
     ...(isLast ? {
       borderBottom: 'unset',
-      height: 14,
+      height: _beatHeight - 1,
     } : {}),
-  } as CSSProperties), [currUserInstrument?.color, pianoRollKeyBaseStyle]);
+  } as CSSProperties), [_beatHeight, currUserInstrument?.color, pianoRollKeyBaseStyle]);
   const renderedPianoRollKeys = useMemo(() => (
     <PianoRollKeysContainer>
       <PianoRollKeysSubContainer $beatHeight={_beatHeight}>
@@ -584,13 +638,13 @@ export function CompositionCanvas({
             style={pianoRollKeysContainerStyle}
           >
             <div style={pianoRollKeyStyle(midiNote, idx === pianoRollKeys.length - 1, heldPianoKeys[midiNote]?.key || heldPianoKeys[midiNote]?.mouse)}
-              onMouseDown={() => {
+              onPointerDown={() => {
                 heldPianoKeys[midiNote] = { ...heldPianoKeys[midiNote], mouse: true };
                 setHeldPianoKeys({...heldPianoKeys});
                 incrementBabyDanceFrame();
                 userInstrumentsRef.current[userInstrumentIndexRef.current].sf2Sampler?.start({ note: midiNote, duration: 0.25 }); 
               }}
-              onMouseOver={(e) => {
+              onPointerOver={(e) => {
                 if (e.buttons === 1) {
                   heldPianoKeys[midiNote] = { ...heldPianoKeys[midiNote], mouse: true };
                   setHeldPianoKeys({...heldPianoKeys});
@@ -598,13 +652,13 @@ export function CompositionCanvas({
                   userInstrumentsRef.current[userInstrumentIndexRef.current].sf2Sampler?.start({ note: midiNote, duration: 0.25 }); 
                 }
               }}
-              onMouseLeave={(e) => {
+              onPointerLeave={(e) => {
                 if (e.buttons === 1 && midiNote in heldPianoKeys) {
                   heldPianoKeys[midiNote].mouse = false;
                   setHeldPianoKeys({...heldPianoKeys});
                 }
               }}
-              onMouseUp={(e) => {
+              onPointerUp={(e) => {
                 if (midiNote in heldPianoKeys) {
                   heldPianoKeys[midiNote].mouse = false;
                   setHeldPianoKeys({...heldPianoKeys});
@@ -644,14 +698,41 @@ export function CompositionCanvas({
   useEffect(() => {
     if (compositionScrollerRef.current) {
       const compositionScroller = compositionScrollerRef.current;
-      compositionScroller.scrollTo(0, compositionScroller.clientHeight / 2);
+      if (window.matchMedia("(pointer: coarse)").matches) {
+        if (window.innerWidth > window.innerHeight) {
+          compositionScroller.scrollTo(0, compositionScroller.clientHeight * 2);
+        } else {
+          compositionScroller.scrollTo(0, compositionScroller.clientHeight);
+        }
+      } else {
+        compositionScroller.scrollTo(0, compositionScroller.clientHeight / 2);
+      }
     }
   }, [compositionScrollerRef]);
+
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (dontScrollForNow) {
+      e.stopPropagation();
+      e.preventDefault();
+      return false;
+    }
+  }, [dontScrollForNow]);
+  useEffect(() => {
+    const compositionScroller = compositionScrollerRef.current;
+    if (compositionScroller) {
+      compositionScroller.addEventListener('touchmove', handleTouchMove, { passive: false });
+    }
+    return () => {
+      if (compositionScroller) {
+        compositionScroller.removeEventListener('touchmove', handleTouchMove);
+      }
+    }
+  }, [handleTouchMove]);
 
   return (
     <CompositionContainer onContextMenu={(e) => e.preventDefault()}>
       {resetUserPlayheadButton}
-      <CompositionGridContainer ref={compositionScrollerRef}>
+      <CompositionGridContainer ref={compositionScrollerRef} style={maybeDisableTouchActionStyle}>
         {renderedCompositionGrid}
       </CompositionGridContainer>
     </CompositionContainer>

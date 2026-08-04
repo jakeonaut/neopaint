@@ -17,7 +17,7 @@ const GridContainer = styled.div<{
   pointer-events: unset;
 `;
 
-type MouseHandler = (e: React.MouseEvent<HTMLDivElement, MouseEvent>, midiBeat: MidiBeat, midiNote: MidiNoteNum) => boolean | undefined;
+type MouseHandler = (e: React.PointerEvent<HTMLDivElement>, midiBeat: MidiBeat, midiNote: MidiNoteNum) => boolean | undefined;
 
 export function CompositionGrid({
   children: allRenderedNotes,
@@ -114,11 +114,11 @@ export function CompositionGrid({
   // -1. for some reason _beatHeight is set to 15 but the piano roll keys and grid uses 14.
   const beatHeight = _beatHeight - 1;
 
-  const getMidiBeatAndNoteFromEvent = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+  const getMidiBeatAndNoteFromEvent = (e: React.PointerEvent<HTMLDivElement>) => {
     const midiBeat = beatFromEvent({
       target: e.target as unknown as HTMLDivElement,
       clientX: e.clientX - 30,
-    }, subdivision === 4 ? _beatWidth : 20);
+    }, beatWidth);
     const midiNote = midiNoteFromEvent({
       target: e.target as unknown as HTMLDivElement,
       clientY: e.clientY - 17,
@@ -135,17 +135,17 @@ export function CompositionGrid({
         $beatWidth={_beatWidth}
         $beatHeight={beatHeight}
         ref={gridRef}
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           const {midiBeat, midiNote} = getMidiBeatAndNoteFromEvent(e);
           handleMouseDown(e, midiBeat, toMidi(midiNote)!);
         }}
-        onMouseMove={(e) => {
+        onPointerMove={(e) => {
           const {midiBeat, midiNote} = getMidiBeatAndNoteFromEvent(e);
           handleMouseMove(e, midiBeat, toMidi(midiNote)!);
         }}
         onDoubleClick={(e) => {
-          const {midiBeat, midiNote} = getMidiBeatAndNoteFromEvent(e);
-          handleDoubleClick(e, midiBeat, toMidi(midiNote)!);
+          const {midiBeat, midiNote} = getMidiBeatAndNoteFromEvent(e as any as React.PointerEvent<HTMLDivElement>);
+          handleDoubleClick(e as any as React.PointerEvent<HTMLDivElement>, midiBeat, toMidi(midiNote)!);
         }}
       >
         {canvas}

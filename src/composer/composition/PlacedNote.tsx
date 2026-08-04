@@ -5,6 +5,7 @@ import { BeatSizeContext } from "../contexts/BeatSizeContextProvider";
 
 const StyledNote = styled.div<{
   $width: number,
+  $height: number,
   $top: number,
   $left: number,
   $bgColor: string,
@@ -15,7 +16,7 @@ const StyledNote = styled.div<{
 }>`
   cursor: pointer;
   width: ${({ $width }) => `${$width}px`};
-  height: 13px;
+  height: ${({ $height }) => `${$height}px`};
   content: " ";
   background-color: ${({ $bgColor }) => $bgColor};
   position: absolute;
@@ -55,7 +56,7 @@ export function PlacedNote({
   visible: boolean;
   instrumentInstruction: InstrumentInstruction,
   shouldMouseIgnoreMe?: boolean;
-  onMouseDown?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>, noteId: NoteId) => void
+  onMouseDown?: (e: React.PointerEvent<HTMLDivElement>, noteId: NoteId) => void
   isClickedNote?: boolean;
   isNoteSelected?: boolean;
   style?: CSSProperties
@@ -71,15 +72,15 @@ export function PlacedNote({
 
   const leftShift = shouldWiggleShift ? -1 : 0;
   const x = (midiBeat - 1) * _beatWidth;
-  const tripletLeftShift = subdivisionType === SubdivisionType.t ? 5 * ((midiBeat - 1) % 4) : 0;
+  const tripletLeftShift = subdivisionType === SubdivisionType.t ? (_beatWidth / 3) * ((midiBeat - 1) % 4) : 0;
   const left = x + 1 + leftShift + tripletLeftShift;
   const noteId = useMemo(() => instrumentInstruction.noteId, [instrumentInstruction.noteId]);
   const handleMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => onMouseDown?.(e, noteId),
+    (e: React.PointerEvent<HTMLDivElement>) => onMouseDown?.(e, noteId),
     [onMouseDown, noteId]
   );
   const handleDoubleClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+    (e: React.PointerEvent<HTMLDivElement>) => {
       e.stopPropagation();
       e.preventDefault();
       return false;
@@ -94,8 +95,9 @@ export function PlacedNote({
       $top={top}
       $left={left}
       $width={noteWidth * beatWidth - 1}
+      $height={_beatHeight - 2}
       $isClickedNote={isClickedNote}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
       style={style}>
       {children}
